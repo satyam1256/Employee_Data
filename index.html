@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Data</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" 
+    integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==" 
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="table">
+        <table id="employeeTable"></table>
+    </div>
+    <script>
+        let table = document.querySelector('#employeeTable');
+
+        (async () => {
+            let workbook = XLSX.read(
+                await (await fetch('./data.xlsx')).arrayBuffer()
+            );
+
+            let worksheet = workbook.SheetNames;
+            worksheet.forEach((sheet) => {
+                let rowObject = XLSX.utils.sheet_to_row_object_array(
+                    workbook.Sheets[sheet]
+                );
+                console.log(rowObject);
+
+                // Display the Excel data in an HTML table
+                let tableHtml = XLSX.utils.sheet_to_html(workbook.Sheets[sheet]);
+                table.innerHTML += tableHtml;
+
+                // a) Find and print employees who worked for 7 consecutive days
+                findEmployeesWith7ConsecutiveDays(rowObject);
+
+                // b) Find and print employees with less than 10 hours between shifts but greater than 1 hour
+                findEmployeesWithLessThan10HoursBetweenShifts(rowObject);
+
+                // // c) Find and print employees who worked for more than 14 hours in a single shift
+                findEmployeesWithMoreThan14HoursInSingleShift(rowObject);
+            });
+        })();
+
+        // Function to find employees who worked for 7 consecutive days
+        function findEmployeesWith7ConsecutiveDays(data) {
+            const consecutiveDaysThreshold = 7;
+            const employeesWith7ConsecutiveDays = [];
+
+            // Sort the data by employee name and time
+            data.sort((a, b) => {
+                const nameComparison = a["Employee Name"].localeCompare(b["Employee Name"]);
+                if (nameComparison !== 0) return nameComparison;
+
+                const timeA = new Date(a["Time"]);
+                const timeB = new Date(b["Time"]);
+                return timeA - timeB;
+            });
+
+            for (let i = 0; i < data.length - consecutiveDaysThreshold + 1; i++) {
+                const currentEmployee = data[i]["Employee Name"];
+                const nextEmployee = data[i + consecutiveDaysThreshold - 1]["Employee Name"];
+
+                if (currentEmployee === nextEmployee) {
+                    const daysWorked = [];
+                    for (let j = 0; j < consecutiveDaysThreshold; j++) {
+                        daysWorked.push(data[i + j]["Time"]);
+                    }
+
+                    employeesWith7ConsecutiveDays.push({
+                        name: currentEmployee,
+                        position: data[i]["Position ID"],
+                        consecutiveDaysWorked: daysWorked,
+                    });
+
+                    // Skip to the next employee
+                    while (i < data.length && data[i]["Employee Name"] === currentEmployee) {
+                        i++;
+                    }
+                }
+            }
+
+            // Print the results to the console
+            console.log("Employees who worked for 7 consecutive days:");
+            employeesWith7ConsecutiveDays.forEach((employee) => {
+                console.log(`Name: ${employee.name}, Position: ${employee.position}`);
+                console.log("Consecutive Days Worked:", employee.consecutiveDaysWorked);
+                console.log();
+            });
+        }
+
+
+        // Function to find employees with less than 10 hours between shifts but greater than 1 hour
+        function findEmployeesWithLessThan10HoursBetweenShifts(rowObject) {
+    const employeesWithLessThan10HoursBetweenShifts = [];
+
+    // Sort the data by employee name and time
+    rowObject.sort((a, b) => {
+        const nameComparison = a["Employee Name"].localeCompare(b["Employee Name"]);
+        if (nameComparison !== 0) return nameComparison;
+
+        const timeA = new Date(a["Time"]);
+        const timeB = new Date(b["Time"]);
+        return timeA - timeB;
+    });
+
+    // Iterate over the data and find employees with less than 10 hours between shifts but greater than 1 hour
+    for (let i = 1; i < rowObject.length; i++) {
+        const currentEmployee = rowObject[i]["Employee Name"];
+        const previousEmployee = rowObject[i - 1]["Employee Name"];
+        const timeA = new Date(rowObject[i]["Time"]);
+        const timeB = new Date(rowObject[i - 1]["Time"]);
+        const timeDifferenceMinutes = (timeA - timeB) / (1000 * 60);
+
+        if (currentEmployee === previousEmployee && timeDifferenceMinutes > 60 && timeDifferenceMinutes < 600) {
+        employeesWithLessThan10HoursBetweenShifts.push({
+            name: currentEmployee,
+            position: rowObject[i]["Position ID"],
+            timeDifferenceMinutes: timeDifferenceMinutes,
+        });
+        }
+    }
+
+    // Print the results to the console
+    console.log("Employees with less than 10 hours between shifts but greater than 1 hour:");
+    employeesWithLessThan10HoursBetweenShifts.forEach((employee) => {
+        console.log(`Name: ${employee.name}, Position: ${employee.position}`);
+        console.log("Time Difference Between Shifts (minutes):", employee.timeDifferenceMinutes);
+        console.log();
+    });
+}
+
+
+
+
+        // Function to find employees who worked for more than 14 hours in a single shift
+        function findEmployeesWithMoreThan14HoursInSingleShift(rowObject) {
+    const employeesWithMoreThan14HoursInSingleShift = [];
+
+    // Iterate over the data and find employees who worked for more than 14 hours in a single shift
+    for (let i = 0; i < rowObject.length; i++) {
+        const currentEmployee = rowObject[i]["Employee Name"];
+        const timeIn = new Date(rowObject[i]["Time"]);
+        const timeOut = new Date(rowObject[i]["Time Out"]);
+        const timeDifferenceMinutes = (timeOut - timeIn) / (1000 * 60);
+
+        if (timeDifferenceMinutes > 840) { // 14 hours = 840 minutes
+        employeesWithMoreThan14HoursInSingleShift.push({
+            name: currentEmployee,
+            position: rowObject[i]["Position ID"],
+            shiftStartTime: timeIn,
+            shiftEndTime: timeOut,
+            shiftDurationMinutes: timeDifferenceMinutes,
+        });
+        }
+    }
+
+    // Print the results to the console
+    console.log("Employees who worked for more than 14 hours in a single shift:");
+    employeesWithMoreThan14HoursInSingleShift.forEach((employee) => {
+        console.log(`Name: ${employee.name}, Position: ${employee.position}`);
+        console.log("Shift Start Time:", employee.shiftStartTime);
+        console.log("Shift End Time:", employee.shiftEndTime);
+        console.log("Shift Duration (minutes):", employee.shiftDurationMinutes);
+        console.log();
+    });
+}
+
+
+    </script>
+</body>
+</html>
+
+
